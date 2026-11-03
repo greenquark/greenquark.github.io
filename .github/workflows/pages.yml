@@ -1,0 +1,66 @@
+name: Publish personal page and GBU Campus
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: greenquark/gbu-campus
+          path: campus
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Prepare static campus routes
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          root=Path('campus')
+          for folder in ['tour','night','shared']:
+              for p in (root/folder).rglob('*'):
+                  if p.suffix in ['.html','.js','.css']:
+                      s=p.read_text()
+                      s=re.sub(r'''(["'`])/(?!/)([^"'`\s]*)''',lambda m:m[1]+'/world/'+m[2],s)
+                      p.write_text(s)
+          p=root/'tools/build.mjs'
+          s=p.read_text().replace("['tour','/',dist]","['tour','/world/',dist]").replace("['night','/night/',","['night','/world/night/',")
+          p.write_text(s)
+          PY
+      - name: Build campus
+        working-directory: campus
+        run: npm ci --ignore-scripts && npm run build
+      - name: Assemble website
+        run: |
+          mkdir -p public/world
+          cp index.html public/index.html
+          cp -R campus/dist/. public/world/
+          cp campus/README.md public/world/SOURCE.md
+          touch public/.nojekyll
+          test -s public/world/index.html
+          test -s public/world/night/index.html
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: public
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4
