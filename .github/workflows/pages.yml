@@ -32,7 +32,9 @@ jobs:
               for p in (root/folder).rglob('*'):
                   if p.suffix in ['.html','.js','.css']:
                       s=p.read_text()
-                      s=re.sub(r'''(["'`])/(?!/)([^"'`\s]*)''',lambda m:m[1]+'/world/'+m[2],s)
+                      s=re.sub(r'''(["'`])/(?!/)([^"'`\s]+)''',lambda m:m[1]+'/world/'+m[2],s)
+                      s=s.replace('href="/"','href="/world/"')
+                      s=re.sub(r"(location\.href\s*=\s*)(['\"])/\2",lambda m:m[1]+m[2]+'/world/'+m[2],s)
                       p.write_text(s)
           p=root/'tools/build.mjs'
           s=p.read_text().replace("['tour','/',dist]","['tour','/world/',dist]").replace("['night','/night/',","['night','/world/night/',")
